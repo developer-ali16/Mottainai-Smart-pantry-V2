@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: mottainai_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mottainai
+      POSTGRES_PASSWORD: mottainai
+      POSTGRES_DB: mottainai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mottainai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API Server ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      target: runtime
+    container_name: mottainai_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://mottainai:mottainai@db:5432/mottainai
+      APP_ENV: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app   # live reload in development
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+volumes:
+  postgres_data:
